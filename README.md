@@ -58,32 +58,64 @@
 ## ✨ 功能特性
 
 ### 1. 双引擎模式
-一键切换 **Pro 模式**（DeepSeek 云端 API）与 **Safe 模式**（Ollama 本地模型），兼顾性能与数据安全。
+
+一键切换 **Pro 模式**（DeepSeek 云端 API）与 **Safe 模式**（Ollama 本地模型），兼顾性能与数据安全。模式在首次发送消息后永久绑定到当前会话。
 
 ### 2. 混合检索
-融合 **稠密向量检索**（BGE 中文嵌入模型，512 维）与 **稀疏关键词检索**（BM25），通过 **RRF（Reciprocal Rank Fusion）** 算法融合排序，显著提升召回质量。
+
+融合 **稠密向量检索**（BGE 中文嵌入模型，512 维）与 **稀疏关键词检索**（BM25），通过 **RRF（Reciprocal Rank Fusion）** 算法融合排序，显著提升召回质量。支持基于意图的检索策略自适应（事实查询走轻量路径，分析/对比走宽召回）。
 
 ### 3. 智能 Agent 管道
+
 基于 **LangGraph** 构建的多节点 Agent 工作流：
 
 ```
-用户查询 → 查询重写 → 意图路由 → 混合检索 → 代码执行 → 答案生成
+用户查询 → 查询重写 → 意图路由 → 并行实体检索 → 代码执行 → 答案生成 → 引用验证
 ```
 
-- **查询重写**：HyDE 假设文档嵌入 + 多查询扩展 + 指代消解
-- **意图路由**：事实查询 / 对比分析 / 计算查询 / 总结归纳，自动路由到不同处理策略
-- **代码执行**：支持在答案中嵌入数值计算与财务指标提取
+- **查询重写**：关键词扩展 + LLM 指代消解（多轮对话时自动启用）
+- **意图路由**：事实查询 / 对比分析 / 计算查询 / 总结归纳，自动路由到不同检索策略
+- **多实体并行检索**：涉及多家公司时自动拆分为独立子查询并行执行
+- **财务感知增强**：识别"净利润""ROE"等关键词时自动补充对应财报类型的检索结果
+- **代码执行**：嵌入数值计算与财务指标提取节点
+- **引用验证**：自动校验答案中的每个 `[来源N]` 引用是否真实存在于检索结果中
 
 ### 4. 精准引用溯源
-答案中以 `[SourceN]` 标注信息来源，并自动链接到原始 PDF 文件的对应页面，确保每个结论都有据可查。
 
-### 5. 多格式文档支持
-支持 PDF、DOCX、PPTX、XLSX、Markdown、纯文本等多种文档格式的上传与解析。
+答案中以 `[来源N]` 格式标注信息来源，鼠标悬停可预览原文片段，点击直接跳转到 PDF 对应页面，确保每个结论都有据可查。
 
-### 6. 流式响应
-基于 SSE（Server-Sent Events）的流式输出，用户可实时看到思考过程与逐步生成的答案。
+### 5. 多轮对话记忆
 
-### 7. 预算控制
+- 自动保存每次对话到文件存储
+- 侧边栏「历史」区域列出所有历史会话
+- 点击历史会话加载完整上下文
+- LLM 自动注入最近 4 轮历史消息，支持指代消解和上下文延续
+
+### 6. 术语速查
+
+内置独立术语查询面板：
+- 输入金融术语（ROE、PB、杜邦分析等）即时获取专业解释
+- 支持定义、计算公式、意义、使用场景
+- 本地模型（Ollama）优先，不可用时远程 API fallback
+- 查询结果自动缓存，重复查询秒出
+
+### 7. 结构纲要生成
+
+上传文档时可选择生成结构纲要（可选，按需消耗 DeepSeek API）：
+- AI 逐章节生成概要索引
+- 大幅提升宏观总结类问题的回答质量
+- 费用约 ¥0.01~¥1.10/份文档
+
+### 8. 多格式文档支持
+
+支持 PDF、DOCX、PPTX、XLSX、Markdown、纯文本六种文档格式的上传与解析。上传时可选择目标集合（专业库/安全库/双库）。
+
+### 9. 流式响应 + Agent 可视化
+
+基于 SSE 的流式输出，用户可实时看到 **Agent 思维过程**（推理→检索→数据→完成），每个步骤独立渲染，直观理解回答生成过程。
+
+### 10. 预算控制
+
 内置三层预算管理体系：
 
 | 层级 | 说明 | 默认限制 |
@@ -92,8 +124,21 @@
 | 💬 会话预算 | 单次会话可消耗的最大额度 | ¥10 |
 | 🔄 请求预算 | 单次请求的可接受成本 | ¥0.5 |
 
-### 8. 金融指标自动提取
-自动从文档中识别并提取关键财务指标（营收、净利润、毛利率、ROE 等），支持对比分析与趋势呈现。
+超预算时自动拒绝请求并提示，防止意外消耗。
+
+### 11. LLM 配置管理
+
+前端内置 LLM 配置面板，支持：
+- 查看/修改专业模式（DeepSeek）和安全模式（Ollama）的模型、地址、API Key
+- AES 加密存储 API Key
+- 一键测试连接
+
+### 12. 运行状态面板
+
+前端底部「状态」按钮打开实时监控面板：
+- 多层缓存命中率
+- 当日/历史 Token 消耗与费用
+- 预算使用情况与剩余额度
 
 ---
 
@@ -108,7 +153,7 @@
 | **大语言模型（Pro）** | DeepSeek V4 Flash API | 云端推理 |
 | **大语言模型（Safe）** | Ollama 本地模型（如 qwen2.5:7b） | 本地推理 |
 | **关键词检索** | BM25（自定义索引） | 稀疏检索 |
-| **API 网关** | Nginx | 路由转发、负载均衡 |
+| **API 网关** | Nginx | 路由转发 |
 | **部署** | Docker Compose | 容器化编排 |
 
 ---
@@ -133,12 +178,23 @@
 ┌─────────────────┐    ┌─────────────────────────────────────┐
 │  Next.js 前端   │    │          FastAPI 后端 (8000)          │
 │  (端口 3000)    │    │  ┌─────────────────────────────────┐ │
-│                 │    │  │   LangGraph Agent Pipeline       │ │
-│  - 文件上传     │    │  │   ├─ 查询重写（HyDE + 多查询） │ │
-│  - 聊天界面     │    │  │   ├─ 意图路由                  │ │
-│  - 源文档查看   │    │  │   ├─ 混合检索                  │ │
-│  - 模式切换     │    │  │   ├─ 代码执行                  │ │
-└─────────────────┘    │  │   └─ 答案生成                  │ │
+│                 │    │  │   Routes                        │ │
+│  - 聊天界面     │    │  │   ├─ /chat (SSE 流式问答)      │ │
+│  - 文件上传     │    │  │   ├─ /ingest (文档上传索引)     │ │
+│  - PDF 内联预览 │    │  │   ├─ /sources (文档管理)        │ │
+│  - 术语速查     │    │  │   ├─ /glossary (术语速查)       │ │
+│  - 指标面板     │    │  │   ├─ /conversations (对话历史)  │ │
+│  - LLM 配置     │    │  │   ├─ /metrics (运行指标)        │ │
+│  - Agent 流程   │    │  │   └─ /llm_config (LLM配置)     │ │
+│  - 历史对话     │    │  └─────────────────────────────────┘ │
+└─────────────────┘    │                                       │
+                       │  ┌─────────────────────────────────┐ │
+                       │  │   Services                      │ │
+                       │  │   ├─ RAG Engine (检索+生成)     │ │
+                       │  │   ├─ Budget Guard (三层预算)    │ │
+                       │  │   ├─ Cache (多级响应缓存)       │ │
+                       │  │   ├─ Citation Verifier (引用核验)│ │
+                       │  │   └─ Cost Tracker (费用追踪)    │ │
                        │  └─────────────────────────────────┘ │
                        │                                       │
                        │  ┌──────────┐  ┌──────────────────┐  │
@@ -157,12 +213,33 @@
 ### 数据处理流程
 
 ```
-文档上传 → 格式解析 → 文本分块 → 嵌入向量化 → Qdrant 索引 + BM25 索引
-                                                                       ↓
-用户提问 → 查询重写 → 意图路由 → 混合检索（向量 + 关键词）
-                                  → RRF 融合排序
-                                  → LLM 生成答案（含引用标注）
-                                  → SSE 流式返回
+文档上传 → 格式解析(.pdf/.docx/.pptx/.xlsx/.md/.txt)
+          → 元数据提取(公司/年份/类型)
+          → Parent-Child 分块
+          → 编码向量化 → Qdrant 索引 + BM25 索引
+          → [可选] 结构纲要生成
+                                         ↓
+用户提问 → 查询重写(关键词扩展/LLM指代消解)
+         → 意图路由(事实/对比/分析/计算/总结)
+         → 混合检索(向量+BM25+RRF融合)
+         → 多实体并行检索(如涉及多家公司)
+         → 财务感知增强(自动补充财报类型检索)
+         → LLM 生成答案(含对话历史注入+引用标注)
+         → 引用验证(逐条核验[来源N]真实性)
+         → SSE 流式返回
+```
+
+### 多轮对话流程
+
+```
+首次提问(无session_id) → 后端自动创建会话 → 绑定模式(pro/safe)
+                      → 保存用户消息 + LLM 回答到 data/conversations/{sid}.json
+                      
+后续提问(携带session_id) → 加载历史消息(最近4轮)
+                        → 注入 LLM 上下文进行指代消解
+                        → 追加保存本轮问答
+                        
+侧边栏「历史」→ 列出所有会话 → 点击加载完整对话上下文
 ```
 
 ---
@@ -178,8 +255,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/wenli/finrag.git
-cd finrag
+git clone https://github.com/ghostlyk1ss/rag_project.git
+cd rag_project
 
 # 2. 创建配置文件
 cp .env.example .env
@@ -213,29 +290,26 @@ docker compose up -d
 
 | 变量名 | 说明 | 必填 | 默认值 |
 |--------|------|------|--------|
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | ✅ | — |
-| `DEEPSEEK_MODEL` | DeepSeek 模型名称 | 否 | `deepseek-chat` |
-| `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | 否 | `https://api.deepseek.com` |
+| `LLM_API_KEY` | DeepSeek / LLM API 密钥 | ✅ | — |
+| `LLM_MODEL` | LLM 模型名称（Pro 模式） | 否 | `deepseek-chat` |
+| `LLM_BASE_URL` | LLM API 地址 | 否 | `https://api.deepseek.com` |
 | `QDRANT_HOST` | Qdrant 服务器地址 | 否 | `localhost` |
 | `QDRANT_PORT` | Qdrant 服务端口 | 否 | `6333` |
 | `DAILY_BUDGET_YUAN` | 每日 LLM 调用预算（元） | 否 | `50` |
 | `SESSION_BUDGET_YUAN` | 单次会话预算（元） | 否 | `10` |
 | `REQUEST_BUDGET_YUAN` | 单次请求预算（元） | 否 | `0.5` |
 | `SAFE_LLM_MODEL` | Safe 模式使用的本地模型 | 否 | `qwen2.5:7b` |
-| `OLLAMA_HOST` | Ollama 服务地址 | 否 | `http://host.docker.internal:11434` |
+| `SAFE_LLM_BASE_URL` | Ollama 服务地址 | 否 | `http://host.docker.internal:11434` |
 | `EMBEDDING_MODEL` | 嵌入模型名称 | 否 | `BAAI/bge-small-zh-v1.5` |
-| `CHUNK_SIZE` | 文档分块大小（字符数） | 否 | `512` |
-| `CHUNK_OVERLAP` | 分块重叠大小 | 否 | `128` |
-| `TOP_K` | 检索返回文档数量 | 否 | `5` |
 | `LOG_LEVEL` | 日志级别 | 否 | `INFO` |
 
 ### 配置示例（.env）
 
 ```bash
-# DeepSeek 配置
-DEEPSEEK_API_KEY=sk-your-deepseek-api-key-here
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com
+# LLM 配置（Pro 模式）
+LLM_API_KEY=sk-your-api-key-here
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com
 
 # Qdrant 配置
 QDRANT_HOST=qdrant
@@ -248,13 +322,10 @@ REQUEST_BUDGET_YUAN=0.5
 
 # 安全模式
 SAFE_LLM_MODEL=qwen2.5:7b
-OLLAMA_HOST=http://host.docker.internal:11434
+SAFE_LLM_BASE_URL=http://host.docker.internal:11434
 
-# 嵌入与检索
+# 嵌入模型
 EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
-CHUNK_SIZE=512
-CHUNK_OVERLAP=128
-TOP_K=5
 ```
 
 ---
@@ -266,10 +337,10 @@ TOP_K=5
 #### 1. 克隆与配置
 
 ```bash
-git clone https://github.com/wenli/finrag.git
-cd finrag
+git clone https://github.com/ghostlyk1ss/rag_project.git
+cd rag_project
 cp .env.example .env
-# 编辑 .env 填入 DeepSeek API Key
+# 编辑 .env 填入 LLM API Key
 ```
 
 #### 2. 启动基础设施（Qdrant）
@@ -331,28 +402,23 @@ ollama serve
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
 
-> ⚠️ **注意**：手动开发的 Nginx 网关默认不启动。如需要，请参考 `gateway/` 目录下的配置自行启动。
-
 ### 常用命令
 
 ```bash
-# 后端测试
-cd backend
-pytest tests/ -v
+# Docker 构建与启动
+docker compose build
+docker compose up -d
 
-# 代码格式化
-black backend/
-ruff check backend/ --fix
-
-# 前端构建
-cd frontend
-npm run build
-
-# Docker 日志查看
+# 查看日志
 docker compose logs -f backend
+docker compose logs -f frontend
 
 # 重启单个服务
 docker compose restart backend
+
+# 重新构建前端（更新源码后）
+docker compose build frontend
+docker compose up -d frontend
 ```
 
 ---
@@ -363,32 +429,55 @@ docker compose restart backend
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/chat` | 发送聊天消息（流式 SSE 响应） |
-| `POST` | `/api/ingest` | 上传并索引文档 |
-| `GET` | `/api/sources` | 获取已索引的文档列表 |
-| `DELETE` | `/api/sources/{id}` | 删除指定文档 |
-| `GET` | `/api/sources/{id}/pdf` | 获取原始 PDF 文件 |
-| `GET` | `/api/health` | 健康检查 |
-| `GET` | `/api/config` | 获取当前配置信息 |
+| `POST` | `/api/v1/chat` | 发送聊天消息（流式 SSE 响应） |
+| `POST` | `/api/v1/ingest` | 上传并索引文档（可选生成纲要） |
+| `GET` | `/api/v1/ingest/{task_id}` | 查询入库任务状态 |
+| `GET` | `/api/v1/sources` | 获取已索引的文档列表 |
+| `DELETE` | `/api/v1/sources/{doc_id}` | 删除指定文档 |
+| `POST` | `/api/v1/sources/refresh` | 刷新文档列表缓存 |
+| `GET` | `/api/v1/sources/{doc_id}` | 获取文档详情与 Chunks |
+| `GET` | `/api/v1/pdf/{doc_id}` | 获取原始 PDF 文件（流式） |
+| `POST` | `/api/v1/glossary/query` | 术语速查（自动 fallback） |
+| `POST` | `/api/v1/glossary/query/confirm` | 术语速查（确认后走远程 API） |
+| `GET` | `/api/v1/glossary/list` | 获取已缓存术语列表 |
+| `DELETE` | `/api/v1/glossary/cache` | 清空术语缓存 |
+| `GET` | `/api/v1/conversations` | 列出所有历史对话 |
+| `GET` | `/api/v1/conversations/{sid}` | 获取对话详情（含消息） |
+| `DELETE` | `/api/v1/conversations/{sid}` | 删除指定对话 |
+| `GET` | `/api/v1/metrics` | 获取运行指标（缓存/费用/预算） |
+| `PUT` | `/api/v1/metrics/budget` | 更新预算配置 |
+| `DELETE` | `/api/v1/metrics/cost` | 重置费用历史 |
+| `GET` | `/api/v1/llm/config` | 获取 LLM 配置 |
+| `PUT` | `/api/v1/llm/config` | 更新 LLM 配置 |
+| `POST` | `/api/v1/llm/test` | 测试 LLM 连接 |
+| `GET` | `/api/v1/health` | 健康检查 |
 
 ### 调用示例
 
 ```bash
-# 文档上传
-curl -X POST http://localhost:8000/api/ingest \
-  -F "file=@/path/to/annual_report.pdf"
-
 # 聊天问答（流式）
-curl -N -X POST http://localhost:8000/api/chat \
+curl -N -X POST http://localhost/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "这家公司去年的营收是多少？",
-    "mode": "pro",
-    "session_id": "sess_001"
+    "query": "贵州茅台2025年营收是多少？",
+    "mode": "pro"
   }'
+
+# 文档上传
+curl -X POST http://localhost/api/v1/ingest \
+  -F "file=@/path/to/report.pdf" \
+  -F "collections=pro"
+
+# 术语速查
+curl -X POST http://localhost/api/v1/glossary/query \
+  -H "Content-Type: application/json" \
+  -d '{"term": "ROE"}'
+
+# 获取指标面板数据
+curl http://localhost/api/v1/metrics
 ```
 
-详细的 API 文档请参考启动后的 Swagger UI：http://localhost:8000/docs。
+详细的 API 文档请参考启动后的 Swagger UI：http://localhost/api/docs。
 
 ---
 
@@ -400,46 +489,70 @@ finrag/
 │   ├── main.py              # 应用入口 + 路由注册
 │   ├── config.py            # 全局配置（环境变量加载）
 │   ├── routers/             # API 路由
-│   │   ├── chat.py          #   聊天接口
-│   │   ├── ingest.py        #   文档上传与索引
-│   │   ├── sources.py       #   文档管理
-│   │   └── pdf.py           #   PDF 文件服务
-│   └── services/            # 核心服务
-│       ├── rag_engine.py    #   RAG 引擎
-│       ├── cache.py         #   响应缓存
-│       ├── budget_guard.py  #   预算控制系统
-│       └── citation.py      #   引用标注管理
+│   │   ├── chat.py          #   流式/阻塞问答接口
+│   │   ├── ingest.py        #   文档上传与索引(含纲要生成)
+│   │   ├── sources.py       #   文档列表/详情/删除
+│   │   ├── pdf.py           #   PDF 文件服务(FileResponse)
+│   │   ├── doc.py           #   PDF 文件下载
+│   │   ├── glossary.py      #   术语速查(缓存+本地+远程)
+│   │   ├── conversations.py #   多轮对话记忆(CRUD)
+│   │   ├── metrics.py       #   运行指标(缓存率/费用/预算)
+│   │   └── llm_config.py    #   LLM配置管理(加密存储API Key)
+│   ├── services/            # 核心服务
+│   │   ├── rag_engine.py    #   RAG引擎(检索+生成+流式)
+│   │   ├── cache.py         #   多级响应缓存(LRU)
+│   │   ├── budget_guard.py  #   三层预算控制系统
+│   │   ├── cost_tracker.py  #   Token/费用追踪
+│   │   ├── citation_verifier.py # 引用真实性核验
+│   │   └── guardrail.py     #   安全守卫(拒答检查)
+│   └── models/
+│       └── schemas.py       #   Pydantic 数据模型
 │
 ├── frontend/                # Next.js 14 前端
 │   └── src/
 │       ├── app/             #   页面路由
-│       ├── components/      #   组件（聊天、上传、文档列表等）
-│       └── lib/             #   API 客户端封装
+│       │   ├── page.tsx     #   入口页
+│       │   ├── ClientPage.tsx # 主页面(侧边栏+聊天+PDF)
+│       │   └── globals.css  #   全局样式
+│       ├── components/      #   React 组件
+│       │   ├── ChatBox.tsx  #       聊天界面+Agent流程可视化
+│       │   ├── Sidebar.tsx  #       侧边栏(文档+历史+上传)
+│       │   ├── DocViewer.tsx #      PDF 内联预览
+│       │   ├── GlossaryModal.tsx #  术语速查弹窗
+│       │   ├── SettingsModal.tsx #  LLM 配置弹窗
+│       │   └── MetricsPanel.tsx #   运行指标面板
+│       └── lib/
+│           └── api.ts       #   API 客户端封装
 │
 ├── scripts/                 # 核心 Python 逻辑
 │   ├── agents/              # LangGraph Agent 节点
-│   │   ├── rewrite.py       #   查询重写
-│   │   ├── router.py        #   意图路由
-│   │   ├── retrieve.py      #   混合检索
-│   │   ├── execute.py       #   代码执行
-│   │   └── generate.py      #   答案生成
-│   ├── retriever.py         # 混合检索引擎（向量 + BM25 + RRF）
-│   └── ingestion_v2.py      # 文档解析 + 分块 + 索引
+│   │   ├── query_rewriter.py #   查询重写
+│   │   ├── intent_router.py #    意图路由
+│   │   └── llm.py          #   LLM 封装
+│   ├── retriever.py         # 混合检索引擎(向量+BM25+RRF)
+│   ├── ingestion_v2.py      # 文档解析+分块+索引流水线
+│   ├── generate_outlines.py # 结构纲要生成(DeepSeek API)
+│   ├── kb_meta.py           # 知识库元数据索引
+│   └── annotate_sources.py  # 文档标签标注
 │
 ├── gateway/                 # Nginx API 网关配置
 │   └── nginx.conf
 │
-├── docker/                  # Docker 部署相关
-│   └── Dockerfile.backend
+├── docker/                  # Docker 部署脚本
+│   ├── Dockerfile.frontend  # 前端镜像构建
+│   ├── Dockerfile.backend   # 后端镜像构建
+│   └── setup.sh             # 初始化脚本
 │
-├── data/                    # 运行时数据（.gitignore）
-│   ├── qdrant_storage/      #   Qdrant 持久化数据
-│   └── bm25_index/          #   BM25 索引文件
+├── data/                    # 运行时数据(.gitignore)
+│   ├── conversations/       #   多轮对话历史
+│   ├── glossary_cache.json  #   术语缓存
+│   └── llm_config.json      #   LLM配置(加密)
 │
-├── docker-compose.yml       # Docker Compose 编排
+├── docker-compose.yml       # Docker Compose 编排(4服务)
 ├── Dockerfile.backend       # 后端 Docker 镜像
+├── Dockerfile.frontend      # 前端 Docker 镜像
 ├── requirements.txt         # Python 依赖
-├── start.sh                 # 启动脚本
+├── start.sh                 # 容器启动脚本
 └── .env.example             # 环境变量模板
 ```
 
@@ -459,13 +572,6 @@ finrag/
 4. 推送到分支：`git push origin feat/amazing-feature`
 5. 提交 Pull Request
 
-### 开发规范
-
-- Python 代码遵循 [PEP 8](https://peps.python.org/pep-0008/) 规范
-- commit 信息遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范
-- 所有新功能需包含单元测试
-- 提交前运行 `ruff check` 进行代码检查
-
 ---
 
 ## 📄 License
@@ -475,7 +581,7 @@ finrag/
 ```
 MIT License
 
-Copyright (c) 2024-present wenli
+Copyright (c) 2024-present ghostlyk1ss
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -491,19 +597,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
 ---
 
-<p align="center">
-  Made with ❤️ for the open-source community
-  <br />
-  <a href="https://github.com/wenli/finrag/issues">报告问题</a>
-  ·
-  <a href="https://github.com/wenli/finrag/discussions">讨论交流</a>
-  ·
-  <a href="https://github.com/wenli/finrag/releases">版本发布</a>
-</p>
