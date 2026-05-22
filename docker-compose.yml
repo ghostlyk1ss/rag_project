@@ -1,0 +1,112 @@
+# ═══════════════════════════════════════════════════════════════
+# finRAG — Docker Compose 生产部署
+# ═══════════════════════════════════════════════════════════════
+# 4 个服务：
+#   qdrant    — 向量数据库（官方镜像）
+#   backend   — FastAPI 后端
+#   frontend  — Next.js 前端（生产构建）
+#   gateway   — Nginx API 网关（唯一入口 :80）
+#
+# 使用方式：
+#   cp .env.example .env        # 配置环境变量
+#   docker compose build         # 构建镜像
+#   docker compose up -d        # 启动
+#   docker compose logs -f      # 查看日志
+#   docker compose down         # 停止
+#
+# 数据持久化：
+#   docker/data/  ← Qdrant DB, BM25, PDF, 会话数据（宿主挂载）
+#   docker/cache/ ← 模型缓存（可选，首次启动自动下载 BGE 模型 21MB）
+#
+# 访问：http://localhost
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # Qdrant 向量数据库
+  # ────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: finrag-qdrant
+    ports:
+      - "6333:6333"   # gRPC
+    volumes:
+      - ./docker/data/qdrant_db:/qdrant/storage:z
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/6333"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ────────────────────────────────────────────────────────────
+  # Backend — FastAPI 后端
+  # ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: finrag-backend:latest
+    container_name: finrag-backend
+    ports: []
+    volumes:
+      # 运行时数据（BM25、parsed/raw 文档、会话等）
+      - ./docker/data:/app/data
+      # 可选：预缓存模型可挂载到这里加速启动
+      # - ./docker/cache/huggingface:/root/.cache/huggingface:ro
+    env_file: .env
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_MODE=remote
+      - EMBED_MODEL_PATH=BAAI/bge-small-zh-v1.5
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ────────────────────────────────────────────────────────────
+  # Frontend — Next.js 前端（生产构建）
+  # ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: finrag-frontend:latest
+    container_name: finrag-frontend
+    ports: []
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────
+  # Gateway — Nginx API 网关（唯一入口）
+  # ────────────────────────────────────────────────────────────
+  gateway:
+    image: nginx:alpine
+    container_name: finrag-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:z
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

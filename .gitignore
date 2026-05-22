@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+
+# IDE
+.idea/
+.vscode/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Runtime data (user-generated, not committed)
+data/raw/
+data/parsed/
+data/qdrant_db/
+data/bm25_index*.pkl
+data/sources_index*.json
+data/conversations/
+data/cost_history.json
+data/llm_config.json
+data/metadata.json
+
+# Docker runtime data (generated at runtime)
+docker/data/
+docker/cache/
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives & artifacts
+_archive/
+benchmark/
+*.html
+*.tsbuildinfo
+*.log

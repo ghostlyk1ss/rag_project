@@ -1,0 +1,49 @@
+# ── Git & Dev ──────────────────────────────
+.git/
+.gitignore
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── Data (runtime, not built-in) ──────────
+data/
+docker/data/
+docker/cache/
+
+# ── Frontend build artifacts ──────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# ── IDE ────────────────────────────────────
+.idea/
+.vscode/
+
+# ── Dev-only scripts (not production) ─────
+scripts/download/
+scripts/analysis/
+scripts/eval_benchmark.py
+scripts/eval_ragas.py
+scripts/eval_ragas_fixed.py
+scripts/debug.sh
+scripts/generate_outlines.py
+scripts/extract_financial_metrics.py
+scripts/generate_summaries.py
+scripts/index_remaining.py
+scripts/index_summaries.py
+scripts/migrate_kb.py
+scripts/agent_rag.py
+
+# ── Archives & benchmarks ────────────────
+_archive/
+benchmark/
+*.html
+
+# ── Logs ──────────────────────────────────
+*.log
+*.tsbuildinfo
+
+# ── OS ─────────────────────────────────────
+.DS_Store
+Thumbs.db

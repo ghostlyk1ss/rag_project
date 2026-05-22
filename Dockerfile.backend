@@ -1,0 +1,39 @@
+# ═══════════════════════════════════════════════════════════════
+# finRAG — Backend Dockerfile (single-stage)
+# ═══════════════════════════════════════════════════════════════
+# 所有 Python 包都有预编译 wheel（x86_64），无需 gcc。
+# 嵌入模型 (BGE-small-zh-v1.5 ≈ 21MB) 在首次请求时自动下载。
+# ═══════════════════════════════════════════════════════════════
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Runtime system deps (curl for healthcheck, libgomp1 for numpy threading)
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends \
+        curl libgomp1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (use mirror for reliability)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+
+# Copy production code only
+COPY backend/ backend/
+COPY scripts/agents/ scripts/agents/
+COPY scripts/__init__.py scripts/
+COPY scripts/ingestion_v2.py scripts/
+COPY scripts/ingestion.py scripts/
+COPY scripts/retriever.py scripts/
+COPY scripts/kb_meta.py scripts/
+COPY scripts/annotate_sources.py scripts/
+
+# NOTE: data/ is NOT copied — mounted as volume at runtime.
+#       System starts with empty knowledge base.
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

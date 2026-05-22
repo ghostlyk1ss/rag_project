@@ -1,0 +1,5 @@
+# Auto-detect text files
+* text=auto
+
+# Frontend build artifacts
+*.map binary
